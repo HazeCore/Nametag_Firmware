@@ -1,13 +1,13 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 #include <avr/sleep.h>
-#include <Array.h>
 
 #include "NameTag.h"
 #include "Store.h"
 #include "Twinkle.h"
 #include "Rainbow.h"
 #include "Camp.h"
+#include "39c3.h"
 #include "StaticColor.h"
 
 // We are limiting the brightness to reduce power consumption.
@@ -16,8 +16,9 @@
 // as some animations add and subtract constant values which would then result in over- or underflows.
 const uint8_t MAX_BRIGHTNESS = 127;
 const uint8_t MIN_BRIGHTNESS = 30;
-const unsigned int ANIMATION_COUNT = 5;
-void (*animations[ANIMATION_COUNT])(unsigned long, uint8_t) = {updateRainbow, updateTwinkle, updateCamp, updateStaticColorPanel, updateStaticColorAll};
+const unsigned int ANIMATION_COUNT = 6;
+typedef void (*AnimFunc)(unsigned long, uint8_t);
+const AnimFunc animations[ANIMATION_COUNT] PROGMEM = {updateRainbow, updateTwinkle, update39c3, updateCamp, updateStaticColorPanel, updateStaticColorAll};
 size_t currentAnimation = 0;
 unsigned long startTime = 0; // time when the animation started
 uint8_t brightness = 64;
@@ -51,10 +52,10 @@ void setup() {
 
     uint8_t hue = Store::getPersonalHue();
     if (NameTag::isButtonPressed()) {
-        currentAnimation = 3; // index of the static color animation
+        currentAnimation = 4; // index of the static color animation
     }
     while (NameTag::isButtonPressed()) {
-        NameTag::setPanelColor(NameTag::gammaHSV(hue*256, 255));
+        NameTag::setPanelColor(NameTag::gammaHSV(hue*256, MAX_BRIGHTNESS));
         hue += 1;
 
         delay(30);
@@ -75,64 +76,71 @@ void setup() {
     interrupts();
 }
 
-volatile bool showFrame = false;
-
 void loop() {
     // enter IDLE sleep between frames
     // it saves about 2mA
+    #ifdef MILLIS_USE_TIMERB0
     TCB0.INTCTRL = 0; // disable Timer B interrupt (used by millis and delay)
+    #endif
     set_sleep_mode(SLEEP_MODE_IDLE);
     sleep_enable();
     sleep_cpu();
     sleep_disable();
+    #ifdef MILLIS_USE_TIMERB0
     TCB0.INTCTRL |= 1; // reenable Timer B interrupt
+    #endif
 
     internalMillis += 32; // increment our own millis timer
 
     checkButton();
 
-    animations[currentAnimation](rough_millis() - startTime, brightness);
+    AnimFunc anim = (AnimFunc)pgm_read_ptr(&animations[currentAnimation]);
+    anim(rough_millis() - startTime, brightness);
 }
 
 void checkButton() {
+    // We only use 16 bit millis here to save space.
+    // It will overflow ever ~65 seconds, but that shouldn't be an issue for what we are doing.
     static bool lastBtnState = false; // true = pressed
-    static unsigned long lastBtnChange = 0; // time when the last state change occurred
-    static unsigned long lastBtnPress = 0; // time when the button was pressed last
-    unsigned long timeSincePress = rough_millis() - lastBtnPress;
+    static uint16_t lastBtnChange = 0; // time when the last state change occurred
+    static uint16_t lastBtnPress = 0; // time when the button was pressed last
+    
+    uint16_t now = rough_millis();
+    uint16_t timeSincePress = now - lastBtnPress;
 
     bool state = NameTag::isButtonPressed();
-    if (state != lastBtnState && rough_millis() - lastBtnChange > 100) { // debounce
-        lastBtnChange = rough_millis();
+    if (state != lastBtnState && now - lastBtnChange > 100) {
+        lastBtnChange = now;
         lastBtnState = state;
 
         if (lastBtnState) {
             // update if the button is pressed
-            lastBtnPress = rough_millis();
-        } else if (timeSincePress < 3000) {
-            // the button was released and the press occurred less than 3 seconds ago
+            lastBtnPress = now;
+        } else if (timeSincePress < 2000) {
+            // the button was released and the press occurred less than 2 seconds ago
             // change the animation
             currentAnimation++;
             if (currentAnimation >= ANIMATION_COUNT) currentAnimation = 0;
             NameTag::setPanelColor(0);
             NameTag::leds.fill(0);
             NameTag::leds.show();
-            startTime = rough_millis();
+            startTime = now;
             Store::setAnimation(currentAnimation);
         } else {
-            // the button was released and the press occurred more than 3 seconds ago 
+            // the button was released and the press occurred more than 2 seconds ago 
             // the brightness was adjusted, save it
             Store::setBrightness(brightness);
         }
     }
 
-    if (lastBtnState && timeSincePress > 3000) {
-        if (timeSincePress <= 3050) {
+    if (lastBtnState && timeSincePress > 2000) {
+        if (timeSincePress <= 2050) {
             NameTag::setPanelColor(0);
             NameTag::leds.fill(0);
             NameTag::leds.show();
             delay(30);
         }
-        // If the button is hold since more than 3 seconds, change the brightness
+        // If the button is held for more than 2 seconds, change the brightness
         static uint8_t dir = -1;
         brightness += dir;
         if (brightness <= MIN_BRIGHTNESS || brightness >= MAX_BRIGHTNESS) {
