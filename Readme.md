@@ -1,9 +1,10 @@
-# CCCamp 2023 Nametag Firmware
+# Nametag Firmware
 
-This is the firmware for our Nametag Badge for Chaos Communication Camp 2023.
-You can find more information about the project at [https://hazeco.re/cccamp-nametag/](https://hazeco.re/cccamp-nametag/).
+This is the firmware for our Nametag Badge for Chaos Communication Camp 2023 and Congress 2025.
+You can find more information about the project at [https://hazeco.re/39c3-nametag/](https://hazeco.re/30c3-nametag/).
 
-The stock firmware delivered with the badge is tagged as version "v1.0".
+The stock firmware delivered with the badge on CCCamp 2023 is tagged as version "v1.0".
+The stock firmware delivered with the badge at Congress 2025 is tagged as version "v2.0".
 
 This is a PlatformIO project with [megaTinyCore](https://github.com/SpenceKonde/megaTinyCore).
 The entry point is located in "src/main.cpp".
@@ -80,7 +81,7 @@ The Attiny402 is programmed through UPDI. To do that you have two options:
 
 Platformio contains two environments for both programming options.
 
-For detailed information about this checkout the [software section](https://hazeco.re/cccamp-nametag/software/) on the website.
+For detailed information about this checkout the [software section](https://hazeco.re/39c3-nametag/software/) on the website.
 
 ## Contributions
 
