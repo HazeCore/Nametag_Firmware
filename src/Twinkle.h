@@ -32,6 +32,12 @@ void updatePixel(unsigned long time, uint8_t brightness) {
         leds.setPixelColor(i, v, d, d);
     }
 
+    // Rocket fire
+    uint8_t b = random8(2, brightness);
+    leds.setPixelColor(0, b >> 2, b >> 4, 0);
+    b = random8(2, brightness);
+    leds.setPixelColor(1, b >> 2, b >> 4, 0);
+
     leds.show();
 };
 
