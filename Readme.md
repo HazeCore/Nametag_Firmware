@@ -38,10 +38,10 @@ We operate in split mode, although normal mode would probably work as well as we
 Unfortunately this timer doesn't operate in Standby mode.
 
 **Timer B (TCB0)** has a 16 bit counter as well but only a single compare channel.
-Thus we can't use it for our three pwm outputs and it's instead configured to run the Arduino millis and delay functions.
+Thus we can't use it for our three pwm outputs.
+It is possible to configure this to run the Arduino `millis` and `delay` functions but we have decided to completely disable those to reduce the program size.
 
-
-The **Real Time Counter (RTC)** (not be be confused with real-time-clock) is used with it's Periodic Interrupt Timer (PIT) to
+The **Real Time Counter (RTC)** (not to be confused with real-time-clock) is used with it's Periodic Interrupt Timer (PIT) to
 wake the MCU from sleep every ~32ms to update the animations at a rate of about 32fps.
 It contains a 16-bit counter as well and uses the internal 1kHz clock source.
 
@@ -54,11 +54,19 @@ The ATtiny402 has three sleep modes:
 
 As Timer A stops in standby mode the deepest sleep mode we can use with pwm is idle. Doing that between frames saves about 2mA. (Other changes might have affected the actual difference in the meantime)
 
-To improve power draw we disable Timer B interrupts between frames which breaks millis. As a replacement we provide a rough_millis function that works the same but operates at a resolution of 32ms, matching the frame rate. Animations get the time since they where started as a parameter and should thus not need to call millis themselves.
+### Time measurement
+
+We decided to disable the standard Arduino `millis` function to save flash space (~6%).
+MegaTinyCore contains a fallback `delay` implementation that is less accurate but works for our purposes.
+As a replacement for `millis` we provide a `rough_millis` function that works the same but operates at a resolution of 32ms, matching the frame time. Animations get the time since they were started as a parameter and should thus not need to call `millis` themselves.
+
+If it should be desired to regain the full `millis` functionality it can be enabled in the platformio.ini file by removing the `-DMILLIS_USE_TIMERNONE` build flag. Instead it can be set to either `-DMILLIS_USE_TIMERB0` or `-DMILLIS_USE_TIMERRTC`.
+The former was used in our original version at Camp2019.
+The latter will use the RTC which we are already using ourselves for sleep wakeup. It saves a little bit of flash compared to Timer B0 and seems to work but would likely be inaccurate since we reconfigure the RTC timing. We haven't measured it though.
 
 ## Writing software
 
-The lib folder includes a "NameTag" library that contains a bunch of functions to setup and control the hardware itself without a specific link to the animation software itself. If you wan't to write your own fully custom software you may want to keep that.  
+The lib folder includes a "NameTag" library that contains a bunch of functions to setup and control the hardware itself without a specific link to the animation software itself. If you want to write your own fully custom software you may want to keep that.  
 
 ### Modifying or creating your own animations
 
